@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+.venv/
+BUILD.md
+*.py[cod]
+.env
+.env.*
+state/
+cache/
+browser-profiles/
+*.log
+*.json
+!**/package.json
