@@ -5,6 +5,23 @@ import perplexity_cdp
 
 
 class PerplexityCdpTests(unittest.TestCase):
+    def test_search_uses_default_without_opening_model_picker(self):
+        class FakePerplexity:
+            def __init__(self): self.actions = []
+            def open_home(self): self.actions.append("home")
+            def js(self, expr): return "true" if expr.startswith("!!") else "false"
+            def click(self, _expr, label): self.actions.append(("click", label))
+            def wait(self, _expr, _timeout, label): self.actions.append(("wait", label))
+            def type_prompt(self, prompt): self.actions.append(("prompt", prompt))
+            def submit(self): self.actions.append("submit"); return "https://www.perplexity.ai/search/abc"
+            def wait_finished(self, _timeout, _url): self.actions.append("finished")
+            def extract(self, mode, model, prompt): return {"mode": mode, "model": model, "prompt": prompt}
+        px = FakePerplexity()
+        result = perplexity_cdp.search(px, "nontrivial question", 300)
+        self.assertEqual(result, {"mode": "Search", "model": "Default", "prompt": "nontrivial question"})
+        self.assertEqual(px.actions, ["home", ("click", "Search mode button"), ("wait", "Search mode"),
+                                      ("prompt", "nontrivial question"), "submit", "finished"])
+
     def test_strict_https_origin(self):
         self.assertTrue(perplexity_cdp.same_origin("https://www.perplexity.ai/session/abc"))
         for url in ("http://www.perplexity.ai/session/a", "https://www.perplexity.ai.evil.test/", "https://evil.test/www.perplexity.ai", "https://www.perplexity.ai:444/"):

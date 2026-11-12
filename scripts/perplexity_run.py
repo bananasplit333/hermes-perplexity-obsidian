@@ -4,10 +4,9 @@
 Examples:
   python3 perplexity_run.py --prompt-file question.txt
   python3 perplexity_run.py --prompt "Find laptop-friendly cafes in Toronto"
-  python3 perplexity_run.py --mode search --model "Claude Sonnet 5.5" --prompt-file question.txt
   python3 perplexity_run.py --prompt-file question.txt --dry-run
 
-The wrapper never signs in, spends credits intentionally, or publishes notes.
+The wrapper uses Search with the default model. It never signs in, spends credits intentionally, or publishes notes.
 """
 from __future__ import annotations
 
@@ -52,8 +51,6 @@ def main(argv: list[str] | None = None, call=helper) -> int:
     inputs = parser.add_mutually_exclusive_group(required=True)
     inputs.add_argument("--prompt")
     inputs.add_argument("--prompt-file", type=Path)
-    parser.add_argument("--mode", choices=("deep-research", "search"), default="deep-research")
-    parser.add_argument("--model", help="Required by Search mode; must be included in the signed-in Pro plan")
     parser.add_argument("--timeout", type=int, default=1200)
     parser.add_argument("--port", type=int, default=9333)
     parser.add_argument("--session", help="Safe reusable session ID; defaults to a timestamped ID")
@@ -62,12 +59,6 @@ def main(argv: list[str] | None = None, call=helper) -> int:
     parser.add_argument("--dry-run", action="store_true", help="Verify the browser workflow without submitting research")
     args = parser.parse_args(argv)
 
-    if args.mode == "search" and not args.model:
-        parser.error("--model is required with --mode search")
-    if args.mode == "deep-research" and args.model:
-        parser.error("--model is not used by Deep Research; it must stay on Default")
-    if args.mode == "search" and args.dry_run:
-        parser.error("--dry-run is supported only for Deep Research")
     if args.timeout < 1 or not 1 <= args.port <= 65535:
         parser.error("timeout and port must be positive and port must be <= 65535")
     session = args.session or "pplx-" + datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -137,13 +128,11 @@ def main(argv: list[str] | None = None, call=helper) -> int:
             primary_code = check.returncode
             preserve_for_login = check.returncode == 3
             if preserve_for_login:
-                print(f"Sign in to Perplexity Pro in the visible browser, then rerun with --session {session} --resume.", file=sys.stderr)
+                print(f"Sign in to Perplexity in the visible browser, then rerun with --session {session} --resume.", file=sys.stderr)
             return primary_code
 
-        cmd = ["--port", str(args.port), args.mode, "--prompt-file", str(prompt_path), "--out", str(out), "--timeout", str(args.timeout)]
-        if args.mode == "search":
-            cmd.extend(["--model", args.model])
-        elif args.dry_run:
+        cmd = ["--port", str(args.port), "search", "--prompt-file", str(prompt_path), "--out", str(out), "--timeout", str(args.timeout)]
+        if args.dry_run:
             cmd.append("--dry-run")
         research = call("perplexity_cdp.py", *cmd, timeout=args.timeout + 180)
         if research.returncode:

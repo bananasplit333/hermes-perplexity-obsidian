@@ -14,7 +14,7 @@ python3 install.py --hermes-home '<confirmed Hermes profile directory>'
 
 The installer refuses an existing destination. Do not delete or overwrite a previously installed skill to get past that guard. Explain the conflict and ask before replacing anything. Load the installed SKILL.md, or start a fresh Hermes session if skill discovery has not refreshed.
 
-Check `python3 --version`, `uv --version`, the installed Chrome executable, and a working visible display. Python must be at least 3.10. Detect the host OS first. On macOS use native Chrome from Applications; on Linux use the installed Chrome/Chromium executable. Do not apply Linux package-manager or display commands to macOS. Adapt dependency installation to the detected OS using official instructions, but do not rewrite ownership or security checks merely to pass setup. If a dependency is missing, explain what is needed and use official installation instructions with normal package-manager consent. Do not run privileged installers silently. Research needs Perplexity Pro, not an API key.
+Check `python3 --version`, `uv --version`, the installed Chrome executable, and a working visible display. Python must be at least 3.10. Detect the host OS first. On macOS use native Chrome from Applications; on Linux use the installed Chrome/Chromium executable. Do not apply Linux package-manager or display commands to macOS. Adapt dependency installation to the detected OS using official instructions, but do not rewrite ownership or security checks merely to pass setup. If a dependency is missing, explain what is needed and use official installation instructions with normal package-manager consent. Do not run privileged installers silently. Use a signed-in Perplexity account. Free accounts work. No API key or model selection is required.
 
 ## Locate Obsidian
 
@@ -56,7 +56,7 @@ Run through `terminal`:
 python3 '<skill-dir>/scripts/perplexity_run.py' --prompt 'Check setup without submitting research.' --dry-run
 ```
 
-A dry run checks the Deep Research composer and clears it without submitting. A new browser profile will normally need the person to sign into Perplexity. They must enter credentials directly in the visible browser, never in chat.
+A dry run checks that the home composer loads, selects Search mode, types the test prompt, then clears it without submitting. The runner does not inspect the account tier or open a model picker. A new browser profile will normally need the person to sign into Perplexity. They must enter credentials directly in the visible browser, never in chat.
 
 The runner prints a session ID on login handoff. After sign-in, use the same command with `--session '<printed ID>' --resume`. Keep `--dry-run` for setup. Do not open repeated login windows. If there is no usable display, report the blocker rather than running an invisible login flow.
 
@@ -64,8 +64,7 @@ The runner prints a session ID on login handoff. After sign-in, use the same com
 
 Use each script's `--help` for full arguments. Relevant runner outcomes include:
 
-- Exit 3 means sign-in/Pro verification is required. The owned window remains available for the user.
-- Exit 4 or 5 means a model/credit safeguard stopped the operation. Do not bypass it.
+- Exit 3 means sign-in is required by the current page. The owned window remains available for the user.
 - Exit 6 means the thread may need input. Inspect before deciding what to do.
 - Exit 7 means research may still be running. Recover the observed thread URL and use `perplexity_cdp.py extract --url '<thread>' --out '<result>'`; do not submit the question again automatically.
 - Exit 12 means browser cleanup verification failed. Inspect `session_chrome.py status --session '<ID>'` and report the actual state.

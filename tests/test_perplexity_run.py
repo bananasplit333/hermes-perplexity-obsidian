@@ -68,10 +68,13 @@ class PerplexityRunTests(unittest.TestCase):
             code = perplexity_run.main(["--prompt", "Research this", "--session", "test-run"], call=fake)
         self.assertEqual(code, 0)
         self.assertEqual([c[1][0] if c[0] == "session_chrome.py" else c[1][-1] if c[1][-1] == "check" else c[1][2]
-                          for c in fake.calls], ["status", "launch", "check", "deep-research", "close", "status"])
+                          for c in fake.calls], ["status", "launch", "check", "search", "close", "status"])
         report = json.loads(output.getvalue())
         self.assertEqual(report["sources_count"], 3)
         self.assertTrue(Path(report["out"]).is_file())
+        research = next(c for c in fake.calls if c[0] == "perplexity_cdp.py" and c[1][-1] != "check")
+        self.assertEqual(research[1][2], "search")
+        self.assertNotIn("--model", research[1])
 
     def test_login_keeps_browser_for_user_handoff(self):
         fake = FakeCall(check_code=3)
@@ -88,7 +91,7 @@ class PerplexityRunTests(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             code = perplexity_run.main(["--prompt", "Check only", "--session", "dry-run", "--dry-run"], call=fake)
         self.assertEqual(code, 0)
-        research = next(c for c in fake.calls if c[0] == "perplexity_cdp.py" and c[1][2] == "deep-research")
+        research = next(c for c in fake.calls if c[0] == "perplexity_cdp.py" and c[1][2] == "search")
         self.assertIn("--dry-run", research[1])
         self.assertFalse((self.home / "cache/scratch/perplexity/dry-run/result.json").exists())
         self.assertEqual(fake.calls[-2][1][0], "close")
@@ -128,6 +131,15 @@ class PerplexityRunTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as raised:
                 perplexity_run.main(["--prompt", "Research this", "--session", "cleanup-run"], call=fake)
         self.assertEqual(raised.exception.code, 12)
+
+    def test_mode_and_model_options_are_rejected(self):
+        for options in (("--mode", "deep-research"), ("--model", "some-model")):
+            with self.subTest(options=options), contextlib.redirect_stderr(io.StringIO()):
+                fake = FakeCall()
+                with self.assertRaises(SystemExit) as raised:
+                    perplexity_run.main(["--prompt", "Research this", *options], call=fake)
+                self.assertEqual(raised.exception.code, 2)
+                self.assertEqual(fake.calls, [])
 
 
 if __name__ == "__main__":

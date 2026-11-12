@@ -1,24 +1,17 @@
 #!/usr/bin/env python3
-"""Drive Perplexity in the Chrome (CDP port 9333) step by step, with a check after each step.
+"""Run the default Search flow through Perplexity's visible browser.
 
   CLI="uv run --with websocket-client python $HERMES_HOME/skills/perplexity-obsidian/scripts/perplexity_cdp.py"
   $CLI check
-  $CLI deep-research --prompt-file PROMPT.txt --out RESULT.json [--timeout 1200]
-  $CLI deep-research --prompt-file PROMPT.txt --out RESULT.json --dry-run   # every check, no submit
-  $CLI search --model "Claude Sonnet 5.5" --prompt-file PROMPT.txt --out RESULT.json
+  $CLI search --prompt-file PROMPT.txt --out RESULT.json [--timeout 300]
+  $CLI search --prompt-file PROMPT.txt --out RESULT.json --dry-run
   $CLI extract --url https://www.perplexity.ai/session/<id> --out RESULT.json
 
-Deep Research flow (mapped 2026-11-11): home -> "+" (Add files, plugins, and more) ->
-listbox option "Deep Research" -> chip "Remove Deep Research" in the composer, Computer
-mode pressed, model "Default" -> type -> Submit -> URL /session/<id> -> "Stop response"
-while Reading/Searching/Working -> "Finished <time>" + "<N> sources" + Copy -> Copy
-yields Markdown with inline source links.
-
+Search mode is the only supported mode. The workflow does not select models or use Deep Research.
 RESULT.json holds thread_url, title, mode, model_label, duration, sources_count,
 answer_markdown, cited_links, and source_panel_links.
-Exit codes: 0 ok, 2 page/selector failure, 3 not signed in to Pro, 4 model is not
-Default (would spend credits), 5 credit/upgrade prompt seen, 6 waiting on user input,
-7 timed out while still running (resume with `extract --url`).
+Exit codes: 0 ok, 2 page/selector failure, 3 sign-in required, 5 credit/upgrade prompt,
+6 waiting on user input, 7 timed out while still running (resume with `extract --url`).
 """
 from __future__ import annotations
 
@@ -36,17 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_lite import Page, list_targets  # noqa: E402
 
 ORIGIN = "https://www.perplexity.ai"
-PLUS = 'button[aria-label="Add files, plugins, and more"]'
 EDITOR = '[contenteditable="true"][role="textbox"]'
-DR_CHIP = 'button[aria-label="Remove Deep Research"]'
-# Max-only per Perplexity's help page (2026-11-11) even when the menu shows another badge.
-MAX_ONLY = {"GPT-6 Astra", "Gemini 4 Carbon", "Claude Opus 5.5", "Claude Fable 5.2"}
-# The model picker is the last menu button in the composer. Its aria-label is "Model" when
-# unset, "Default" in Computer mode, or the full model name once one is chosen (sticky).
-MODEL_BUTTON = """(() => { let c = document.querySelector('[contenteditable="true"][role="textbox"]');
-    while (c && !c.querySelector('button[aria-label="Submit"], button[aria-label="Use voice mode"]')) c = c.parentElement;
-    const b = c ? Array.from(c.querySelectorAll("button[aria-haspopup=menu]")) : [];
-    return b.length ? b[b.length - 1] : null; })()"""
 BLOCKERS = re.compile(
     r"now using credits|buy (more )?credits|add credits|insufficient credits|out of credits|"
     r"upgrade to max|upgrade your plan|you('ve| have) (used|reached) (all|your)|limit reached|auto-refill",
@@ -125,10 +108,8 @@ class Perplexity:
 
     def open_home(self):
         self.p.call("Page.navigate", url=ORIGIN + "/")
-        self.wait(f'document.readyState === "complete" && !!document.querySelector({json.dumps(EDITOR)}) '
-                  f'&& !!document.querySelector({json.dumps(PLUS)})', 30, "home composer")
-        self.wait('Array.from(document.querySelectorAll("nav button, aside button, button")).some(b => /\\nPro$/.test(b.innerText.trim()))',
-                  20, "account button with Pro badge (sign in to the Pro account in the visible window)", code=3)
+        self.wait(f'document.readyState === "complete" && !!document.querySelector({json.dumps(EDITOR)})',
+                  30, "home composer")
 
     def type_prompt(self, prompt: str, must_contain: str | None = None):
         self.js(f"document.querySelector({json.dumps(EDITOR)}).focus()")
@@ -223,66 +204,25 @@ class Perplexity:
         }
 
 
-def deep_research(px: Perplexity, prompt: str, timeout: float, dry_run: bool = False) -> dict:
+def search(px: Perplexity, prompt: str, timeout: float, dry_run: bool = False) -> dict:
     px.open_home()
-    option = 'Array.from(document.querySelectorAll("[role=listbox] [role=option]")).find(o => o.innerText.trim().split("\\n")[0] === "Deep Research")'
-    chip = f"!!document.querySelector({json.dumps(EDITOR + ' ' + DR_CHIP)})"
-    for _ in range(3):
-        if px.js(chip):
-            break
-        if not px.js(f"!!({option})"):
-            px.click(f"document.querySelector({json.dumps(PLUS)})", "+ button")
-            px.wait(f"!!({option})", 10, "+ menu with Deep Research")
-        px.click(option, "Deep Research option")
-        deadline = time.monotonic() + 4
-        while time.monotonic() < deadline and not px.js(chip):
-            time.sleep(0.25)
-    if not px.js(chip):
-        state = px.js('({listbox: !!document.querySelector("[role=listbox] [role=option]"), editor: document.querySelector('
-                      + json.dumps(EDITOR) + ')?.innerText})')
-        fail(2, f"Deep Research chip never appeared after 3 attempts; page state {state}")
-    px.wait('document.querySelector("button[aria-label=Computer]")?.getAttribute("aria-pressed") === "true"', 10, "Computer mode")
-    model = px.js(f"({MODEL_BUTTON})?.getAttribute('aria-label') || ''")
-    if (model or "").strip() != "Default":
-        fail(4, f"Deep Research model is {model!r}, not Default; a non-default model spends credits")
-    px.type_prompt(prompt, must_contain="Deep Research")
+    search_button = 'document.querySelector("button[aria-label=Search]")'
+    if px.js(f"!!{search_button}") and px.js(f"{search_button}?.getAttribute(\"aria-pressed\")") != "true":
+        px.click(search_button, "Search mode button")
+        px.wait(f"{search_button}?.getAttribute(\"aria-pressed\") === \"true\"", 10, "Search mode")
+    px.type_prompt(prompt)
     if dry_run:
         px.assert_no_blockers()
         px.js(f"document.querySelector({json.dumps(EDITOR)}).focus()")
         for kind in ("keyDown", "keyUp"):
             px.p.call("Input.dispatchKeyEvent", type=kind, key="a", code="KeyA", windowsVirtualKeyCode=65, modifiers=2)
         px.key("Backspace", "Backspace", 8)
-        px.key("Backspace", "Backspace", 8)
         left = (px.js(f"document.querySelector({json.dumps(EDITOR)}).innerText") or "").strip()
         return {"dry_run": True, "composer_cleared": left == "",
-                "steps_verified": ["home + Pro badge", "+ menu", "Deep Research option", "chip in composer",
-                                   "Computer mode", "model Default", "prompt typed", "no credit prompt"]}
+                "steps_verified": ["home composer", "Search mode", "prompt typed", "no credit prompt"]}
     url = px.submit()
     px.wait_finished(timeout, url)
-    return px.extract("Deep Research (Computer)", "Default", prompt)
-
-
-def search(px: Perplexity, prompt: str, model: str, timeout: float) -> dict:
-    px.open_home()
-    if px.js('document.querySelector("button[aria-label=Search]")?.getAttribute("aria-pressed")') != "true":
-        px.click('document.querySelector("button[aria-label=Search]")', "Search mode button")
-        px.wait('document.querySelector("button[aria-label=Search]")?.getAttribute("aria-pressed") === "true"', 10, "Search mode")
-    px.click(MODEL_BUTTON, "Model button")
-    items = px.wait('(() => { const i = Array.from(document.querySelectorAll("[role=menuitem],[role=menuitemradio]")).map(e => e.innerText.trim().split("\\n")); return i.length ? i : null; })()',
-                    10, "model menu")
-    match = next((lines for lines in items if lines[0] == model), None)
-    if not match:
-        fail(2, f"model {model!r} not in menu: {[i[0] for i in items]}")
-    if "Max" in match[1:] or model in MAX_ONLY:
-        px.key("Escape", "Escape", 27)
-        fail(4, f"{model} is Max-only on this account; pick a Pro-included model")
-    px.click(f'Array.from(document.querySelectorAll("[role=menuitem],[role=menuitemradio]")).find(e => e.innerText.trim().split("\\n")[0] === {json.dumps(model)})',
-             f"{model} menu item")
-    px.wait(f"({MODEL_BUTTON})?.getAttribute('aria-label') === {json.dumps(model)}", 10, f"{model} selected")
-    px.type_prompt(prompt)
-    url = px.submit()
-    px.wait_finished(timeout, url)
-    return px.extract("Search", model, prompt)
+    return px.extract("Search", "Default", prompt)
 
 
 def main(argv=None) -> int:
@@ -290,15 +230,11 @@ def main(argv=None) -> int:
     ap.add_argument("--port", type=int, default=9333)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("check")
-    for name in ("deep-research", "search"):
-        p = sub.add_parser(name)
-        p.add_argument("--prompt-file", type=Path, required=True)
-        p.add_argument("--out", type=Path, required=True)
-        p.add_argument("--timeout", type=float, default=1200 if name == "deep-research" else 300)
-        if name == "search":
-            p.add_argument("--model", required=True)
-        else:
-            p.add_argument("--dry-run", action="store_true", help="verify every pre-submit step, then clear the composer")
+    p = sub.add_parser("search")
+    p.add_argument("--prompt-file", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--timeout", type=float, default=300)
+    p.add_argument("--dry-run", action="store_true", help="verify pre-submit steps, then clear the composer")
     e = sub.add_parser("extract")
     e.add_argument("--url", required=True)
     e.add_argument("--out", type=Path, required=True)
@@ -310,7 +246,7 @@ def main(argv=None) -> int:
         px = Perplexity(args.port)
         if args.cmd == "check":
             px.open_home()
-            print(json.dumps({"ok": True, "url": px.js("location.href"), "pro": True}))
+            print(json.dumps({"ok": True, "url": px.js("location.href"), "account_tier_required": False}))
             return 0
         if args.cmd == "extract":
             if not same_origin(args.url) or urlsplit(args.url).path.split("/", 2)[1] not in {"session", "search"}:
@@ -319,16 +255,12 @@ def main(argv=None) -> int:
             px.wait('document.readyState === "complete"', 30, "thread page")
             time.sleep(2)
             px.wait_finished(args.timeout, args.url)
-            label = px.js(f"({MODEL_BUTTON})?.getAttribute('aria-label') || ''")
-            result = px.extract("unknown (extracted)", (label or "").strip() or "unknown", None)
+            result = px.extract("Search (extracted)", "unknown", None)
         else:
             prompt = args.prompt_file.read_text(encoding="utf-8").strip()
             if not prompt:
                 fail(2, "prompt file is empty")
-            if args.cmd == "deep-research":
-                result = deep_research(px, prompt, args.timeout, args.dry_run)
-            else:
-                result = search(px, prompt, args.model, args.timeout)
+            result = search(px, prompt, args.timeout, args.dry_run)
             if result.get("dry_run"):
                 print(json.dumps(result, indent=2))
                 return 0 if result["composer_cleared"] else 2

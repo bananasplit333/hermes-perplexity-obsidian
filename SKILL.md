@@ -8,17 +8,17 @@ platforms: [linux, macos]
 
 # Perplexity research for Obsidian
 
-Use the user's Perplexity Pro account through a visible Chrome window. Obsidian is required. Save verified research locally only when requested. Never publish notes or run Git sync.
+Use the user's signed-in Perplexity account through a visible Chrome window. Free accounts are supported. Obsidian is required. Save verified research locally only when requested. Never publish notes or run Git sync.
 
 ## When to use
 
-Use for Perplexity research or research-to-Obsidian requests. Complete setup before the first research run. Do not use another search service while claiming it is Perplexity.
+Use this skill whenever a question needs current web research, source comparison, or more than a quick lookup. Prefer it for non-trivial research rather than answering from model memory. Complete setup before the first research run. Do not use another search service while claiming it is Perplexity.
 
 ## Prerequisites
 
 - Hermes on Linux, macOS, or WSL with a working visible Chrome display. Native Windows browser automation is not supported.
 - Python 3.10 or newer, `uv`, Google Chrome or a compatible installed Chromium executable, and network access. The runner uses `uv` to supply `websocket-client` and `psutil`.
-- An existing Obsidian vault accessible from the agent's machine, and a Perplexity Pro account. No API key is needed.
+- An existing Obsidian vault accessible from the agent's machine, and a signed-in Perplexity account. Free accounts work. No API key is needed.
 - Read `references/setup.md` for first-run installation, missing-vault help, and folder questions. Do not ask the person to run technical commands the agent can run.
 
 ## First-run setup
@@ -32,9 +32,9 @@ Use for Perplexity research or research-to-Obsidian requests. Complete setup bef
 
 ## Research
 
-1. Clarify the question only when needed. Do not include private notes, connected-app data, or account information in the prompt. For Deep Research append `Do not use connected apps, create files, or perform any external actions beyond web research.`
-2. Save the prompt in profile-local scratch. Run `python3 <skill-dir>/scripts/perplexity_run.py --prompt-file '<prompt-file>' --out '<result-file>'` through `terminal`. Default mode is Deep Research on Default. Narrow Search requests may use `--mode search --model '<currently Pro-included model>'`; inspect the live model menu first. Never choose a Max model or buy credits. Ordinary research can consume the plan's included allowance.
-3. Handle failures as described in `references/setup.md`. Never blindly resubmit after a timeout, as a research thread may still be running. The browser UI and model menus change. Stop on upgrade, credit, or exhausted-allowance prompts rather than bypassing guards.
+1. Clarify the question only when needed. Do not include private notes, connected-app data, or account information in the prompt. Do not request Deep Research or a model choice. This skill always uses the account's default Search mode.
+2. Save the prompt in profile-local scratch. Run `python3 <skill-dir>/scripts/perplexity_run.py --prompt-file '<prompt-file>' --out '<result-file>'` through `terminal`. The runner selects Search and leaves model selection untouched. `--dry-run` checks the Search workflow without submitting.
+3. Handle failures as described in `references/setup.md`. Never blindly resubmit after a timeout, as a research thread may still be running. Stop on upgrade, credit, or exhausted-allowance prompts rather than bypassing guards.
 4. Confirm the result JSON exists and inspect it. Use `web_extract` or the browser to verify primary sources behind key claims. Perplexity citations are leads, not proof. Mark uncertainties and dates on time-sensitive findings. Never invent a citation or claim the UI label proves the backend model.
 5. Answer in chat. Archive only when the user requested saving or the research-to-Obsidian flow. Choosing a destination during setup is not blanket permission to save every future conversation.
 6. For requested archives, write a note outside the vault using `templates/article.md`. Replace every placeholder with observed information or omit the field. Save with `python3 <skill-dir>/scripts/obsidian_vault.py save --name '<Title>.md' --input '<draft-path>'`. For topic layout use `Topic--Title.md`, which selects the topic subfolder. Never use generated titles as shell syntax.

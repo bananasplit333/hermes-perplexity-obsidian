@@ -1,6 +1,6 @@
 # Perplexity research for Obsidian
 
-A Hermes skill that researches through your Perplexity Pro account, checks sources, and saves requested research into your existing Obsidian notes.
+A Hermes skill that researches through a signed-in Perplexity account, checks sources, and saves requested research into your existing Obsidian notes. Free accounts use Search with the default model. Deep Research and model selection are not available in this workflow.
 
 **Obsidian is required. Browser automation targets Linux, macOS, and Windows through WSLg, not native Windows.** Hermes must be able to access the vault and show you a Chrome window for sign-in. A remote server cannot automatically access notes on your laptop.
 
@@ -26,7 +26,7 @@ No Obsidian yet? The agent helps you get it set up first. This version does not 
 
 - Hermes on Linux, macOS, or WSL with a visible Chrome display.
 - Python 3.10+, `uv`, Chrome, and network access. The browser runner fetches `websocket-client` and `psutil` through `uv`.
-- An existing accessible Obsidian vault and a Perplexity Pro account.
+- An existing accessible Obsidian vault and a signed-in Perplexity account. Free accounts work.
 
 The vault helper includes discovery paths for Linux, Windows, macOS, and WSL. Native Windows browser operation is not supported. macOS-specific code is covered by simulated tests; a live Mac browser test is still required on the installing machine. Linux browser checks and Mac simulation results are reported separately.
 
@@ -55,13 +55,13 @@ python3 scripts/perplexity_run.py --prompt 'Setup check' --dry-run
 python3 scripts/perplexity_run.py --prompt-file question.txt --out result.json
 ```
 
-Research requires completed vault configuration. `--dry-run` does not submit a question. Actual research can consume your included Perplexity allowance. Saving is a separate step, performed only when requested.
+Free accounts use Search with the default model. The runner does not offer Deep Research or model selection. `--dry-run` checks the Search workflow without submitting a question. Actual research can consume the account's available allowance. Saving is a separate step, performed only when requested.
 
 ## Privacy and limits
 
 Settings, browser profiles and research output stay in your active Hermes profile, outside this repository. Browser profiles contain login cookies. Do not commit or share them, and exclude them from public backups. During sign-in, a loopback browser-control port remains open; other processes running as you can access it. Close the setup session when abandoning login. Existing notes are not overwritten. No Git sync or note publishing is included. The browser lifecycle tracks owned windows and does not close borrowed ones.
 
-Perplexity UI automation is unofficial. Its selectors, model menus, plan limits and service rules can change. Stop on upgrade or credit prompts. Do not use this tool to bypass access restrictions. Sources still need to be checked before relying on an answer.
+Perplexity UI automation is unofficial. Its selectors, plan limits, and service rules can change. Stop on upgrade or credit prompts. Do not use this tool to bypass access restrictions. Sources still need to be checked before relying on an answer.
 
 ## Development checks
 
